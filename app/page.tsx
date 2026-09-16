@@ -7,6 +7,66 @@ export default function Home() {
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    setError("");
+    setMessage("");
+
+    if (file.type !== "application/pdf") {
+      setError("Please select a PDF file only.");
+      setSelectedFile(null);
+      return;
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      setError("PDF size must be less than 20MB.");
+      setSelectedFile(null);
+      return;
+    }
+
+    setSelectedFile(file);
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      setError("Please select a PDF file first.");
+      return;
+    }
+
+    setIsUploading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || "Upload failed.");
+        return;
+      }
+
+      setMessage(data.message);
+    } catch (error) {
+      console.error("Upload error:", error);
+      setError("Unable to upload PDF. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
@@ -40,34 +100,14 @@ export default function Home() {
             </h3>
 
             <p className="mt-2 text-sm text-slate-400">
-              Select a PDF to get started.
+              Select a PDF to upload it to AskPDF.
             </p>
 
             <input
               ref={fileInputRef}
               type="file"
               accept="application/pdf"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-
-                if (!file) return;
-
-                setError("");
-
-                if (file.type !== "application/pdf") {
-                  setError("Please select a PDF file only.");
-                  setSelectedFile(null);
-                  return;
-                }
-
-                if (file.size > 20 * 1024 * 1024) {
-                  setError("PDF size must be less than 20MB.");
-                  setSelectedFile(null);
-                  return;
-                }
-
-                setSelectedFile(file);
-              }}
+              onChange={handleFileChange}
               className="hidden"
             />
 
@@ -75,7 +115,7 @@ export default function Home() {
               onClick={() => fileInputRef.current?.click()}
               className="mt-6 rounded-lg bg-blue-600 px-6 py-3 font-medium transition hover:bg-blue-700"
             >
-              Upload PDF
+              Choose PDF
             </button>
 
             {selectedFile && (
@@ -91,7 +131,21 @@ export default function Home() {
                 <p className="mt-1 text-xs text-slate-400">
                   {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
                 </p>
+
+                <button
+                  onClick={handleUpload}
+                  disabled={isUploading}
+                  className="mt-4 rounded-lg bg-green-600 px-5 py-2 font-medium transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isUploading ? "Uploading..." : "Upload to AskPDF"}
+                </button>
               </div>
+            )}
+
+            {message && (
+              <p className="mt-4 text-sm text-green-400">
+                {message}
+              </p>
             )}
 
             {error && (
