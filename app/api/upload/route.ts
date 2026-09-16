@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 export async function POST(request: Request) {
   try {
@@ -36,11 +39,36 @@ export async function POST(request: Request) {
       );
     }
 
+    const uploadDirectory = path.join(
+      process.cwd(),
+      "public",
+      "uploads"
+    );
+
+    await mkdir(uploadDirectory, { recursive: true });
+
+    const safeFileName = file.name.replace(
+      /[^a-zA-Z0-9._-]/g,
+      "_"
+    );
+
+    const savedFileName = `${randomUUID()}-${safeFileName}`;
+
+    const filePath = path.join(
+      uploadDirectory,
+      savedFileName
+    );
+
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+
+    await writeFile(filePath, fileBuffer);
+
     return NextResponse.json({
       success: true,
-      message: "PDF received successfully.",
+      message: "PDF uploaded and saved successfully.",
       fileName: file.name,
-      fileSize: file.size,
+      savedFileName,
+      fileUrl: `/uploads/${savedFileName}`,
     });
   } catch (error) {
     console.error("Upload error:", error);
@@ -48,7 +76,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: false,
-        message: "Something went wrong while uploading the PDF.",
+        message: "Something went wrong while saving the PDF.",
       },
       { status: 500 }
     );

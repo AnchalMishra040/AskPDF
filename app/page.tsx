@@ -9,14 +9,18 @@ export default function Home() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState("");
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
 
     if (!file) return;
 
     setError("");
     setMessage("");
+    setUploadedFileUrl("");
 
     if (file.type !== "application/pdf") {
       setError("Please select a PDF file only.");
@@ -42,9 +46,11 @@ export default function Home() {
     setIsUploading(true);
     setError("");
     setMessage("");
+    setUploadedFileUrl("");
 
     try {
       const formData = new FormData();
+
       formData.append("file", selectedFile);
 
       const response = await fetch("/api/upload", {
@@ -60,6 +66,7 @@ export default function Home() {
       }
 
       setMessage(data.message);
+      setUploadedFileUrl(data.fileUrl);
     } catch (error) {
       console.error("Upload error:", error);
       setError("Unable to upload PDF. Please try again.");
@@ -143,9 +150,20 @@ export default function Home() {
             )}
 
             {message && (
-              <p className="mt-4 text-sm text-green-400">
-                {message}
-              </p>
+              <div className="mt-4 text-sm text-green-400">
+                <p>{message}</p>
+
+                {uploadedFileUrl && (
+                  <a
+                    href={uploadedFileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-block text-blue-400 underline hover:text-blue-300"
+                  >
+                    Open uploaded PDF
+                  </a>
+                )}
+              </div>
             )}
 
             {error && (
