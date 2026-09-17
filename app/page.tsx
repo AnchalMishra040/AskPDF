@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type UploadedDocument = {
   fileName: string;
@@ -12,12 +12,35 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadedDocument, setUploadedDocument] =
-    useState<UploadedDocument | null>(null);
+  const [documents, setDocuments] = useState<UploadedDocument[]>([]);
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
+
+  const fetchDocuments = async () => {
+    try {
+      const response = await fetch("/api/documents");
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || "Unable to fetch documents.");
+        return;
+      }
+
+      setDocuments(data.documents);
+    } catch (error) {
+      console.error("Documents fetch error:", error);
+      setError("Unable to load documents.");
+    } finally {
+      setIsLoadingDocuments(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
 
   const handleFileChange = (
     event: React.ChangeEvent<HTMLInputElement>
@@ -71,12 +94,13 @@ export default function Home() {
       }
 
       setMessage(data.message);
+      setSelectedFile(null);
 
-      setUploadedDocument({
-        fileName: data.fileName,
-        fileSize: data.fileSize,
-        fileUrl: data.fileUrl,
-      });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      await fetchDocuments();
     } catch (error) {
       console.error("Upload error:", error);
       setError("Unable to upload PDF. Please try again.");
@@ -174,37 +198,59 @@ export default function Home() {
         </div>
 
         <div className="mx-auto mt-10 max-w-2xl">
-          <h3 className="mb-4 text-xl font-semibold">
-            My Documents
-          </h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-xl font-semibold">
+              My Documents
+            </h3>
 
-          {uploadedDocument ? (
-            <div className="rounded-xl border border-slate-700 bg-slate-900 p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="font-medium text-white">
-                    📄 {uploadedDocument.fileName}
-                  </p>
+            <button
+              onClick={fetchDocuments}
+              className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
+            >
+              Refresh
+            </button>
+          </div>
 
-                  <p className="mt-2 text-sm text-slate-400">
-                    Size:{" "}
-                    {(uploadedDocument.fileSize / (1024 * 1024)).toFixed(2)} MB
-                  </p>
-
-                  <p className="mt-1 text-sm text-green-400">
-                    Uploaded successfully
-                  </p>
-                </div>
-
-                <a
-                  href={uploadedDocument.fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium transition hover:bg-blue-700"
+          {isLoadingDocuments ? (
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 text-center">
+              <p className="text-slate-400">
+                Loading documents...
+              </p>
+            </div>
+          ) : documents.length > 0 ? (
+            <div className="space-y-4">
+              {documents.map((document) => (
+                <div
+                  key={document.fileUrl}
+                  className="rounded-xl border border-slate-700 bg-slate-900 p-6"
                 >
-                  Open PDF
-                </a>
-              </div>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="break-all font-medium text-white">
+                        📄 {document.fileName}
+                      </p>
+
+                      <p className="mt-2 text-sm text-slate-400">
+                        Size:{" "}
+                        {(document.fileSize / (1024 * 1024)).toFixed(2)} MB
+                      </p>
+
+                      <p className="mt-1 text-sm text-green-400">
+                        Available
+                      </p>
+                    </div>
+
+                    <a
+                      href={document.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium transition hover:bg-blue-700"
+                    >
+                      Open PDF
+                    </a>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 text-center">
