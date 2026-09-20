@@ -9,6 +9,11 @@ type UploadedDocument = {
   fileUrl: string;
 };
 
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -27,9 +32,13 @@ export default function Home() {
 
   // AI states
   const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState("");
   const [isAsking, setIsAsking] = useState(false);
   const [askError, setAskError] = useState("");
+
+  // Chat history
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(
+    []
+  );
 
   const fetchDocuments = async () => {
     try {
@@ -63,11 +72,11 @@ export default function Home() {
 
     setError("");
     setMessage("");
-    setAnswer("");
     setAskError("");
     setQuestion("");
     setDocumentId("");
     setExtractedText("");
+    setChatMessages([]);
 
     if (file.type !== "application/pdf") {
       setError("Please select a PDF file only.");
@@ -93,8 +102,8 @@ export default function Home() {
     setIsUploading(true);
     setError("");
     setMessage("");
-    setAnswer("");
     setAskError("");
+    setChatMessages([]);
 
     try {
       const formData = new FormData();
@@ -135,10 +144,10 @@ export default function Home() {
     setIsLoadingDocument(true);
     setError("");
     setMessage("");
-    setAnswer("");
     setAskError("");
     setQuestion("");
     setExtractedText("");
+    setChatMessages([]);
     setDocumentId(selectedDocumentId);
 
     try {
@@ -183,9 +192,20 @@ export default function Home() {
       return;
     }
 
+    const userQuestion = question.trim();
+
     setIsAsking(true);
     setAskError("");
-    setAnswer("");
+    setQuestion("");
+
+    // Add user's question immediately to chat
+    setChatMessages((previousMessages) => [
+      ...previousMessages,
+      {
+        role: "user",
+        content: userQuestion,
+      },
+    ]);
 
     try {
       const response = await fetch("/api/ask", {
@@ -194,7 +214,7 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          question: question.trim(),
+          question: userQuestion,
           documentId,
         }),
       });
@@ -208,9 +228,17 @@ export default function Home() {
         return;
       }
 
-      setAnswer(data.answer || "No answer received.");
+      // Add AI answer to chat
+      setChatMessages((previousMessages) => [
+        ...previousMessages,
+        {
+          role: "assistant",
+          content: data.answer || "No answer received.",
+        },
+      ]);
     } catch (error) {
       console.error("Ask AI error:", error);
+
       setAskError("Unable to connect with AI. Please try again.");
     } finally {
       setIsAsking(false);
@@ -334,10 +362,23 @@ export default function Home() {
                 setQuestion(e.target.value);
                 setAskError("");
               }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+
+                  if (!isAsking) {
+                    handleAsk();
+                  }
+                }
+              }}
               placeholder="Example: What is this document about?"
               rows={4}
               className="mt-5 w-full resize-none rounded-lg border border-slate-700 bg-slate-950 p-4 text-white outline-none transition focus:border-blue-500"
             />
+
+            <p className="mt-2 text-xs text-slate-500">
+              Press Enter to ask or Shift + Enter for a new line.
+            </p>
 
             <button
               onClick={handleAsk}
@@ -353,15 +394,43 @@ export default function Home() {
               </p>
             )}
 
-            {answer && (
-              <div className="mt-6 rounded-xl border border-slate-700 bg-slate-950 p-5">
-                <h3 className="mb-3 text-lg font-semibold text-blue-400">
-                  🤖 AI Answer
-                </h3>
+            {/* Chat History */}
+            {chatMessages.length > 0 && (
+              <div className="mt-8 space-y-4">
+                {chatMessages.map((chatMessage, index) => (
+                  <div
+                    key={index}
+                    className={`rounded-xl p-5 ${
+                      chatMessage.role === "user"
+                        ? "border border-blue-900 bg-blue-950/30"
+                        : "border border-slate-700 bg-slate-950"
+                    }`}
+                  >
+                    <h3
+                      className={`mb-2 text-sm font-semibold ${
+                        chatMessage.role === "user"
+                          ? "text-blue-400"
+                          : "text-green-400"
+                      }`}
+                    >
+                      {chatMessage.role === "user"
+                        ? "You"
+                        : "🤖 AI"}
+                    </h3>
 
-                <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
-                  {answer}
-                </p>
+                    <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
+                      {chatMessage.content}
+                    </p>
+                  </div>
+                ))}
+
+                {isAsking && (
+                  <div className="rounded-xl border border-slate-700 bg-slate-950 p-5">
+                    <p className="text-sm text-slate-400">
+                      🤖 AI is thinking...
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
