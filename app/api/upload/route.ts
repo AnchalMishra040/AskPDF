@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { writeFile } from "fs/promises";
+import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 import { getData } from "pdf-parse/worker";
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // Convert uploaded file into a buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
@@ -47,35 +48,65 @@ export async function POST(request: Request) {
 
     await parser.destroy();
 
-    // Save PDF file
+    // Create uploads folder if it does not exist
     const uploadDirectory = path.join(
       process.cwd(),
       "public",
       "uploads"
     );
 
-    const safeFileName = `${randomUUID()}-${file.name.replace(
+    await mkdir(uploadDirectory, { recursive: true });
+
+    // Create documents data folder if it does not exist
+    const documentsDirectory = path.join(
+      process.cwd(),
+      "data",
+      "documents"
+    );
+
+    await mkdir(documentsDirectory, { recursive: true });
+
+    // Create unique ID for the document
+    const documentId = randomUUID();
+
+    // Make the PDF filename safe
+    const safeFileName = `${documentId}-${file.name.replace(
       /[^a-zA-Z0-9.-]/g,
       "_"
     )}`;
 
-    const filePath = path.join(uploadDirectory, safeFileName);
+    // Save PDF
+    const filePath = path.join(
+      uploadDirectory,
+      safeFileName
+    );
 
     await writeFile(filePath, buffer);
 
-   return NextResponse.json({
-  message: "PDF uploaded and text extracted successfully.",
-  fileName: file.name,
-  fileUrl: `/uploads/${safeFileName}`,
-  pageCount,
-  extractedText,
-  textPreview: extractedText.slice(0, 1500),
-   });
+    // Save extracted text separately
+    const textFilePath = path.join(
+      documentsDirectory,
+      `${documentId}.txt`
+    );
+
+    await writeFile(textFilePath, extractedText, "utf8");
+
+    return NextResponse.json({
+      message: "PDF uploaded and text extracted successfully.",
+      documentId,
+      fileName: file.name,
+      fileUrl: `/uploads/${safeFileName}`,
+      pageCount,
+      extractedText,
+      textPreview: extractedText.slice(0, 1500),
+    });
   } catch (error) {
     console.error("Upload error:", error);
 
     return NextResponse.json(
-      { error: "Something went wrong while processing the PDF." },
+      {
+        error: "Something went wrong while processing the PDF.",
+      },
       { status: 500 }
     );
   }

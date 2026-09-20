@@ -1,13 +1,34 @@
 import { NextResponse } from "next/server";
+import { readFile } from "fs/promises";
+import path from "path";
 import { GoogleGenAI } from "@google/genai";
+
+export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const { question, text } = await request.json();
+    const { question, documentId } = await request.json();
 
-    if (!question || !text) {
+    if (!question || !documentId) {
       return NextResponse.json(
-        { error: "Question and PDF text are required" },
+        { error: "Question and document are required" },
+        { status: 400 }
+      );
+    }
+
+    // Find the saved text file for this document
+    const textFilePath = path.join(
+      process.cwd(),
+      "data",
+      "documents",
+      `${documentId}.txt`
+    );
+
+    const extractedText = await readFile(textFilePath, "utf8");
+
+    if (!extractedText.trim()) {
+      return NextResponse.json(
+        { error: "No text was found in this document." },
         { status: 400 }
       );
     }
@@ -20,13 +41,14 @@ export async function POST(request: Request) {
 You are AskPDF, an AI assistant that answers questions from PDF documents.
 
 Use ONLY the information provided in the PDF text below.
+
 If the answer is not available in the PDF, clearly say:
 "I couldn't find this information in the uploaded PDF."
 
 Keep the answer clear, simple and relevant.
 
 PDF TEXT:
-${text}
+${extractedText}
 
 USER QUESTION:
 ${question}
@@ -44,7 +66,9 @@ ${question}
     console.error("Ask error:", error);
 
     return NextResponse.json(
-      { error: "Something went wrong while getting the AI answer." },
+      {
+        error: "Something went wrong while getting the AI answer.",
+      },
       { status: 500 }
     );
   }

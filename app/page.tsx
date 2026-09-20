@@ -16,6 +16,7 @@ export default function Home() {
 
   const [error, setError] = useState("");
   const [extractedText, setExtractedText] = useState("");
+  const [documentId, setDocumentId] = useState("");
   const [message, setMessage] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
@@ -107,6 +108,7 @@ export default function Home() {
 
       setMessage(data.message);
       setExtractedText(data.extractedText  || "");
+      setDocumentId(data.documentId || "");
       setSelectedFile(null);
 
       if (fileInputRef.current) {
@@ -145,9 +147,9 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          question: question.trim(),
-          text: extractedText,
-        }),
+             question: question.trim(),
+             documentId,
+    }),
       });
 
       const data = await response.json();
