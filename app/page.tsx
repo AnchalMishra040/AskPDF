@@ -15,9 +15,16 @@ export default function Home() {
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
 
   const [error, setError] = useState("");
+  const [extractedText, setExtractedText] = useState("");
   const [message, setMessage] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
+
+  // AI states
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [isAsking, setIsAsking] = useState(false);
+  const [askError, setAskError] = useState("");
 
   const fetchDocuments = async () => {
     try {
@@ -51,6 +58,9 @@ export default function Home() {
 
     setError("");
     setMessage("");
+    setAnswer("");
+    setAskError("");
+    setQuestion("");
 
     if (file.type !== "application/pdf") {
       setError("Please select a PDF file only.");
@@ -76,6 +86,8 @@ export default function Home() {
     setIsUploading(true);
     setError("");
     setMessage("");
+    setAnswer("");
+    setAskError("");
 
     try {
       const formData = new FormData();
@@ -94,6 +106,7 @@ export default function Home() {
       }
 
       setMessage(data.message);
+      setExtractedText(data.extractedText  || "");
       setSelectedFile(null);
 
       if (fileInputRef.current) {
@@ -106,6 +119,52 @@ export default function Home() {
       setError("Unable to upload PDF. Please try again.");
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  // Ask AI
+  const handleAsk = async () => {
+    if (!question.trim()) {
+      setAskError("Please enter a question.");
+      return;
+    }
+
+    if (!extractedText) {
+      setAskError("Please upload a PDF first.");
+      return;
+    }
+
+    setIsAsking(true);
+    setAskError("");
+    setAnswer("");
+
+    try {
+      const response = await fetch("/api/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: question.trim(),
+          text: extractedText,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setAskError(
+          data.error || "Unable to get an answer from AI."
+        );
+        return;
+      }
+
+      setAnswer(data.answer || "No answer received.");
+    } catch (error) {
+      console.error("Ask AI error:", error);
+      setAskError("Unable to connect with AI. Please try again.");
+    } finally {
+      setIsAsking(false);
     }
   };
 
@@ -132,6 +191,7 @@ export default function Home() {
           </p>
         </div>
 
+        {/* Upload Section */}
         <div className="mx-auto max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 p-8">
           <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-700 px-6 py-16 text-center">
             <div className="mb-4 text-5xl">📄</div>
@@ -178,7 +238,9 @@ export default function Home() {
                   disabled={isUploading}
                   className="mt-4 rounded-lg bg-green-600 px-5 py-2 font-medium transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isUploading ? "Uploading..." : "Upload to AskPDF"}
+                  {isUploading
+                    ? "Uploading..."
+                    : "Upload to AskPDF"}
                 </button>
               </div>
             )}
@@ -197,6 +259,57 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Ask AI Section */}
+        {extractedText && (
+          <div className="mx-auto mt-10 max-w-2xl rounded-2xl border border-blue-900 bg-slate-900 p-8">
+            <h2 className="text-2xl font-bold">
+              💬 Ask a Question
+            </h2>
+
+            <p className="mt-2 text-sm text-slate-400">
+              Ask anything about your uploaded PDF.
+            </p>
+
+            <textarea
+              value={question}
+              onChange={(e) => {
+                setQuestion(e.target.value);
+                setAskError("");
+              }}
+              placeholder="Example: What is this document about?"
+              rows={4}
+              className="mt-5 w-full resize-none rounded-lg border border-slate-700 bg-slate-950 p-4 text-white outline-none transition focus:border-blue-500"
+            />
+
+            <button
+              onClick={handleAsk}
+              disabled={isAsking}
+              className="mt-4 rounded-lg bg-blue-600 px-6 py-3 font-medium transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isAsking ? "Thinking..." : "Ask AI"}
+            </button>
+
+            {askError && (
+              <p className="mt-4 text-sm text-red-400">
+                {askError}
+              </p>
+            )}
+
+            {answer && (
+              <div className="mt-6 rounded-xl border border-slate-700 bg-slate-950 p-5">
+                <h3 className="mb-3 text-lg font-semibold text-blue-400">
+                  🤖 AI Answer
+                </h3>
+
+                <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
+                  {answer}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* My Documents */}
         <div className="mx-auto mt-10 max-w-2xl">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-xl font-semibold">
@@ -232,7 +345,10 @@ export default function Home() {
 
                       <p className="mt-2 text-sm text-slate-400">
                         Size:{" "}
-                        {(document.fileSize / (1024 * 1024)).toFixed(2)} MB
+                        {(document.fileSize / (1024 * 1024)).toFixed(
+                          2
+                        )}{" "}
+                        MB
                       </p>
 
                       <p className="mt-1 text-sm text-green-400">
@@ -260,6 +376,19 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* Extracted Text Preview */}
+        {extractedText && (
+          <div className="mx-auto mt-10 max-w-2xl rounded-xl border border-slate-700 bg-slate-900 p-5">
+            <h2 className="mb-3 text-xl font-semibold text-white">
+              Extracted Text Preview
+            </h2>
+
+            <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
+              {extractedText}
+            </p>
+          </div>
+        )}
       </section>
     </main>
   );
