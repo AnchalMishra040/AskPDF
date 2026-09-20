@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { readdir, stat } from "node:fs/promises";
-import path from "node:path";
+import { readdir, stat } from "fs/promises";
+import path from "path";
 
 export async function GET() {
   try {
@@ -12,35 +12,33 @@ export async function GET() {
 
     const files = await readdir(uploadDirectory);
 
-    const documents = [];
+    const documents = await Promise.all(
+      files
+        .filter((file) => file.toLowerCase().endsWith(".pdf"))
+        .map(async (file) => {
+          const filePath = path.join(uploadDirectory, file);
+          const fileStats = await stat(filePath);
 
-    for (const fileName of files) {
-      if (!fileName.toLowerCase().endsWith(".pdf")) {
-        continue;
-      }
+          // The document ID is the UUID at the beginning of the filename
+          const documentId = file.split("-").slice(0, 5).join("-");
 
-      const filePath = path.join(uploadDirectory, fileName);
-      const fileStats = await stat(filePath);
-
-      documents.push({
-        fileName,
-        fileSize: fileStats.size,
-        fileUrl: `/uploads/${fileName}`,
-      });
-    }
+          return {
+            documentId,
+            fileName: file,
+            fileSize: fileStats.size,
+            fileUrl: `/uploads/${file}`,
+          };
+        })
+    );
 
     return NextResponse.json({
-      success: true,
       documents,
     });
   } catch (error) {
-    console.error("Documents fetch error:", error);
+    console.error("Documents error:", error);
 
     return NextResponse.json(
-      {
-        success: false,
-        message: "Unable to fetch documents.",
-      },
+      { error: "Unable to load documents" },
       { status: 500 }
     );
   }

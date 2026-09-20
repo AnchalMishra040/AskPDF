@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 type UploadedDocument = {
+  documentId: string;
   fileName: string;
   fileSize: number;
   fileUrl: string;
@@ -21,6 +22,9 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
 
+  // Document loading state
+  const [isLoadingDocument, setIsLoadingDocument] = useState(false);
+
   // AI states
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
@@ -33,7 +37,7 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.message || "Unable to fetch documents.");
+        setError(data.error || "Unable to fetch documents.");
         return;
       }
 
@@ -62,6 +66,8 @@ export default function Home() {
     setAnswer("");
     setAskError("");
     setQuestion("");
+    setDocumentId("");
+    setExtractedText("");
 
     if (file.type !== "application/pdf") {
       setError("Please select a PDF file only.");
@@ -102,12 +108,12 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.message || "Upload failed.");
+        setError(data.error || "Upload failed.");
         return;
       }
 
       setMessage(data.message);
-      setExtractedText(data.extractedText  || "");
+      setExtractedText(data.extractedText || "");
       setDocumentId(data.documentId || "");
       setSelectedFile(null);
 
@@ -124,6 +130,47 @@ export default function Home() {
     }
   };
 
+  // Load selected document
+  const handleChat = async (selectedDocumentId: string) => {
+    setIsLoadingDocument(true);
+    setError("");
+    setMessage("");
+    setAnswer("");
+    setAskError("");
+    setQuestion("");
+    setExtractedText("");
+    setDocumentId(selectedDocumentId);
+
+    try {
+      const response = await fetch(
+        `/api/document-text?documentId=${encodeURIComponent(
+          selectedDocumentId
+        )}`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(
+          data.error || "Unable to load the selected document."
+        );
+        return;
+      }
+
+      setExtractedText(data.extractedText || "");
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } catch (error) {
+      console.error("Document loading error:", error);
+      setError("Unable to load the selected document.");
+    } finally {
+      setIsLoadingDocument(false);
+    }
+  };
+
   // Ask AI
   const handleAsk = async () => {
     if (!question.trim()) {
@@ -131,8 +178,8 @@ export default function Home() {
       return;
     }
 
-    if (!extractedText) {
-      setAskError("Please upload a PDF first.");
+    if (!documentId) {
+      setAskError("Please select a document first.");
       return;
     }
 
@@ -147,9 +194,9 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-             question: question.trim(),
-             documentId,
-    }),
+          question: question.trim(),
+          documentId,
+        }),
       });
 
       const data = await response.json();
@@ -261,15 +308,24 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Selected Document Loading */}
+        {isLoadingDocument && (
+          <div className="mx-auto mt-10 max-w-2xl rounded-xl border border-blue-900 bg-slate-900 p-5 text-center">
+            <p className="text-blue-400">
+              Loading selected document...
+            </p>
+          </div>
+        )}
+
         {/* Ask AI Section */}
-        {extractedText && (
+        {documentId && extractedText && !isLoadingDocument && (
           <div className="mx-auto mt-10 max-w-2xl rounded-2xl border border-blue-900 bg-slate-900 p-8">
             <h2 className="text-2xl font-bold">
               💬 Ask a Question
             </h2>
 
             <p className="mt-2 text-sm text-slate-400">
-              Ask anything about your uploaded PDF.
+              Ask anything about your selected PDF.
             </p>
 
             <textarea
@@ -358,14 +414,26 @@ export default function Home() {
                       </p>
                     </div>
 
-                    <a
-                      href={document.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium transition hover:bg-blue-700"
-                    >
-                      Open PDF
-                    </a>
+                    <div className="flex gap-2">
+                      <a
+                        href={document.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium transition hover:bg-blue-700"
+                      >
+                        Open PDF
+                      </a>
+
+                      <button
+                        onClick={() =>
+                          handleChat(document.documentId)
+                        }
+                        disabled={isLoadingDocument}
+                        className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Chat
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
