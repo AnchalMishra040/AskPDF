@@ -23,12 +23,16 @@ export default function Home() {
   const [error, setError] = useState("");
   const [extractedText, setExtractedText] = useState("");
   const [documentId, setDocumentId] = useState("");
+  const [selectedDocumentName, setSelectedDocumentName] =
+    useState("");
   const [message, setMessage] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
+  const [isLoadingDocuments, setIsLoadingDocuments] =
+    useState(true);
 
   // Document loading state
-  const [isLoadingDocument, setIsLoadingDocument] = useState(false);
+  const [isLoadingDocument, setIsLoadingDocument] =
+    useState(false);
 
   // AI states
   const [question, setQuestion] = useState("");
@@ -75,6 +79,7 @@ export default function Home() {
     setAskError("");
     setQuestion("");
     setDocumentId("");
+    setSelectedDocumentName("");
     setExtractedText("");
     setChatMessages([]);
 
@@ -124,6 +129,7 @@ export default function Home() {
       setMessage(data.message);
       setExtractedText(data.extractedText || "");
       setDocumentId(data.documentId || "");
+      setSelectedDocumentName(data.fileName || "");
       setSelectedFile(null);
 
       if (fileInputRef.current) {
@@ -140,7 +146,10 @@ export default function Home() {
   };
 
   // Load selected document
-  const handleChat = async (selectedDocumentId: string) => {
+  const handleChat = async (
+    selectedDocumentId: string,
+    selectedFileName: string
+  ) => {
     setIsLoadingDocument(true);
     setError("");
     setMessage("");
@@ -149,6 +158,7 @@ export default function Home() {
     setExtractedText("");
     setChatMessages([]);
     setDocumentId(selectedDocumentId);
+    setSelectedDocumentName(selectedFileName);
 
     try {
       const response = await fetch(
@@ -352,8 +362,14 @@ export default function Home() {
               💬 Ask a Question
             </h2>
 
+            {selectedDocumentName && (
+              <p className="mt-3 break-all text-sm text-blue-400">
+                📄 {selectedDocumentName}
+              </p>
+            )}
+
             <p className="mt-2 text-sm text-slate-400">
-              Ask anything about your selected PDF.
+              Ask anything about this document.
             </p>
 
             <textarea
@@ -495,7 +511,10 @@ export default function Home() {
 
                       <button
                         onClick={() =>
-                          handleChat(document.documentId)
+                          handleChat(
+                            document.documentId,
+                            document.fileName
+                          )
                         }
                         disabled={isLoadingDocument}
                         className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
