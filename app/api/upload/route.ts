@@ -28,18 +28,16 @@ export async function POST(request: Request) {
       );
     }
 
-    if (file.size > 20 * 1024 * 1024) {
+    if (file.size > 50 * 1024 * 1024) {
       return NextResponse.json(
-        { error: "File size must be less than 20 MB" },
+        { error: "File size must be less than 50 MB" },
         { status: 400 }
       );
     }
 
-    // Convert uploaded file into a buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Extract text from PDF
     const parser = new PDFParse({ data: buffer });
     const result = await parser.getText();
 
@@ -48,7 +46,6 @@ export async function POST(request: Request) {
 
     await parser.destroy();
 
-    // Create uploads folder if it does not exist
     const uploadDirectory = path.join(
       process.cwd(),
       "public",
@@ -57,7 +54,6 @@ export async function POST(request: Request) {
 
     await mkdir(uploadDirectory, { recursive: true });
 
-    // Create documents data folder if it does not exist
     const documentsDirectory = path.join(
       process.cwd(),
       "data",
@@ -66,16 +62,13 @@ export async function POST(request: Request) {
 
     await mkdir(documentsDirectory, { recursive: true });
 
-    // Create unique ID for the document
     const documentId = randomUUID();
 
-    // Make the PDF filename safe
     const safeFileName = `${documentId}-${file.name.replace(
       /[^a-zA-Z0-9.-]/g,
       "_"
     )}`;
 
-    // Save PDF
     const filePath = path.join(
       uploadDirectory,
       safeFileName
@@ -83,13 +76,16 @@ export async function POST(request: Request) {
 
     await writeFile(filePath, buffer);
 
-    // Save extracted text separately
     const textFilePath = path.join(
       documentsDirectory,
       `${documentId}.txt`
     );
 
-    await writeFile(textFilePath, extractedText, "utf8");
+    await writeFile(
+      textFilePath,
+      extractedText,
+      "utf8"
+    );
 
     return NextResponse.json({
       message: "PDF uploaded and text extracted successfully.",
@@ -105,7 +101,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        error: "Something went wrong while processing the PDF.",
+        error:
+          "Something went wrong while processing the PDF.",
       },
       { status: 500 }
     );

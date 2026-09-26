@@ -67,6 +67,7 @@ export default function Home() {
     fetchDocuments();
   }, []);
 
+  // Handle PDF selection
   const handleFileChange = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -89,8 +90,8 @@ export default function Home() {
       return;
     }
 
-    if (file.size > 20 * 1024 * 1024) {
-      setError("PDF size must be less than 20MB.");
+    if (file.size > 50 * 1024 * 1024) {
+      setError("PDF size must be less than 50MB.");
       setSelectedFile(null);
       return;
     }
@@ -98,6 +99,7 @@ export default function Home() {
     setSelectedFile(file);
   };
 
+  // Upload PDF
   const handleUpload = async () => {
     if (!selectedFile) {
       setError("Please select a PDF file first.");
@@ -190,6 +192,13 @@ export default function Home() {
     }
   };
 
+  // Clear chat history
+  const handleClearChat = () => {
+    setChatMessages([]);
+    setQuestion("");
+    setAskError("");
+  };
+
   // Ask AI
   const handleAsk = async () => {
     if (!question.trim()) {
@@ -257,6 +266,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
+      {/* Navbar */}
       <nav className="border-b border-slate-800 px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <h1 className="text-2xl font-bold">AskPDF</h1>
@@ -268,6 +278,7 @@ export default function Home() {
       </nav>
 
       <section className="mx-auto max-w-6xl px-6 py-16">
+        {/* Hero Section */}
         <div className="mb-12 text-center">
           <h2 className="text-4xl font-bold tracking-tight sm:text-5xl">
             Chat with your documents
@@ -300,6 +311,7 @@ export default function Home() {
             />
 
             <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               className="mt-6 rounded-lg bg-blue-600 px-6 py-3 font-medium transition hover:bg-blue-700"
             >
@@ -321,6 +333,7 @@ export default function Home() {
                 </p>
 
                 <button
+                  type="button"
                   onClick={handleUpload}
                   disabled={isUploading}
                   className="mt-4 rounded-lg bg-green-600 px-5 py-2 font-medium transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
@@ -358,9 +371,21 @@ export default function Home() {
         {/* Ask AI Section */}
         {documentId && extractedText && !isLoadingDocument && (
           <div className="mx-auto mt-10 max-w-2xl rounded-2xl border border-blue-900 bg-slate-900 p-8">
-            <h2 className="text-2xl font-bold">
-              💬 Ask a Question
-            </h2>
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-2xl font-bold">
+                💬 Ask a Question
+              </h2>
+
+              {chatMessages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearChat}
+                  className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
+                >
+                  🧹 Clear Chat
+                </button>
+              )}
+            </div>
 
             {selectedDocumentName && (
               <p className="mt-3 break-all text-sm text-blue-400">
@@ -397,6 +422,7 @@ export default function Home() {
             </p>
 
             <button
+              type="button"
               onClick={handleAsk}
               disabled={isAsking}
               className="mt-4 rounded-lg bg-blue-600 px-6 py-3 font-medium transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
@@ -460,6 +486,7 @@ export default function Home() {
             </h3>
 
             <button
+              type="button"
               onClick={fetchDocuments}
               className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
             >
@@ -510,6 +537,7 @@ export default function Home() {
                       </a>
 
                       <button
+                        type="button"
                         onClick={() =>
                           handleChat(
                             document.documentId,
