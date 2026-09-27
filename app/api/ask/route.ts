@@ -136,13 +136,18 @@ ${question}
                   annotation.type ===
                   "file_citation"
                 ) {
+                  const pageNumber =
+                    annotation.pageNumber ??
+                    annotation.page_number;
+
                   sources.push({
                     fileName:
                       annotation.file_name ||
                       "Uploaded PDF",
 
-                    pageNumber:
-                      annotation.pageNumber,
+                    ...(typeof pageNumber === "number"
+                      ? { pageNumber }
+                      : {}),
                   });
                 }
               }
@@ -176,8 +181,11 @@ ${question}
         );
 
         /*
-         * Only use File Search answer if it
-         * actually found useful information.
+         * If File Search found a useful answer,
+         * return it.
+         *
+         * If Gemini did not provide citation metadata,
+         * still show the selected PDF as the source.
          */
         const couldNotFind =
           answer
@@ -190,13 +198,33 @@ ${question}
           answer.trim() &&
           !couldNotFind
         ) {
+          let finalSources =
+            uniqueSources;
+
+          /*
+           * If Gemini did not return citation
+           * metadata, create a general PDF source.
+           */
+          if (finalSources.length === 0) {
+            finalSources = [
+              {
+                fileName: "Selected PDF",
+              },
+            ];
+          }
+
           console.log(
             "Using File Search answer."
           );
 
+          console.log(
+            "Final sources:",
+            finalSources
+          );
+
           return NextResponse.json({
             answer: answer.trim(),
-            sources: uniqueSources,
+            sources: finalSources,
           });
         }
 
@@ -330,12 +358,28 @@ ${question}
       }
     }
 
+    /*
+     * Direct PDF fallback does not currently
+     * provide page citation metadata.
+     *
+     * So we show the actual selected PDF
+     * as the source.
+     */
+    const originalFileName =
+      pdfFileName.substring(
+        documentId.length + 1
+      );
+
     return NextResponse.json({
       answer:
         response?.text ||
         "No answer received.",
 
-      sources: [],
+      sources: [
+        {
+          fileName: originalFileName,
+        },
+      ],
     });
   } catch (error: any) {
     console.error(
