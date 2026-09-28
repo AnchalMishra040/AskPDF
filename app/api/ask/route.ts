@@ -8,6 +8,24 @@ export const runtime = "nodejs";
 const wait = (milliseconds: number) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+const withTimeout = <T>(
+  promise: Promise<T>,
+  milliseconds: number
+): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => {
+        reject(
+          new Error(
+            `Request timed out after ${milliseconds / 1000} seconds.`
+          )
+        );
+      }, milliseconds);
+    }),
+  ]);
+};
+
 type Source = {
   fileName: string;
   pageNumber?: number;
@@ -59,10 +77,11 @@ export async function POST(request: Request) {
 
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
-            interaction = await ai.interactions.create({
-              model: "gemini-3.8-flash",
+            interaction = await withTimeout(
+              ai.interactions.create({
+                model: "gemini-3.8-flash",
 
-              input: `
+                input: `
 You are AskPDF, an AI assistant that answers questions from PDF documents.
 
 Answer the user's question using information from the uploaded PDF.
@@ -78,18 +97,20 @@ USER QUESTION:
 ${question}
 `,
 
-              tools: [
-                {
-                  type: "file_search",
-                  file_search_store_names: [
-                    fileSearchStore,
-                  ],
+                tools: [
+                  {
+                    type: "file_search",
+                    file_search_store_names: [
+                      fileSearchStore,
+                    ],
 
-                  metadata_filter:
-                    `documentId="${documentId}"`,
-                },
-              ],
-            });
+                    metadata_filter:
+                      `documentId="${documentId}"`,
+                  },
+                ],
+              }),
+              25_000
+            );
 
             break;
           } catch (error: any) {
@@ -187,6 +208,7 @@ ${question}
          * If Gemini did not provide citation metadata,
          * still show the selected PDF as the source.
          */
+
         const couldNotFind =
           answer
             .toLowerCase()
@@ -201,10 +223,6 @@ ${question}
           let finalSources =
             uniqueSources;
 
-          /*
-           * If Gemini did not return citation
-           * metadata, create a general PDF source.
-           */
           if (finalSources.length === 0) {
             finalSources = [
               {
@@ -314,8 +332,8 @@ ${question}
           `Sending PDF directly to Gemini. Attempt ${attempt}...`
         );
 
-        response =
-          await ai.models.generateContent({
+        response = await withTimeout(
+          ai.models.generateContent({
             model: "gemini-3.6-flash",
 
             contents: [
@@ -337,7 +355,9 @@ ${question}
                 ],
               },
             ],
-          });
+          }),
+          45_000
+        );
 
         break;
       } catch (error: any) {
@@ -365,6 +385,7 @@ ${question}
      * So we show the actual selected PDF
      * as the source.
      */
+
     const originalFileName =
       pdfFileName.substring(
         documentId.length + 1
@@ -386,6 +407,20 @@ ${question}
       "Ask error:",
       error
     );
+
+    if (
+      error?.message?.includes(
+        "Request timed out"
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "The AI service is taking too long to respond. Please try again.",
+        },
+        { status: 504 }
+      );
+    }
 
     if (error?.status === 503) {
       return NextResponse.json(
