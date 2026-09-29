@@ -42,10 +42,46 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [isAsking, setIsAsking] = useState(false);
   const [askError, setAskError] = useState("");
+  const [thinkingMessage, setThinkingMessage] = useState(
+    "Searching your document..."
+  );
+  const [lastAskedQuestion, setLastAskedQuestion] =
+    useState("");
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(
     []
   );
+
+  /*
+   * ------------------------------------------------
+   * AI LOADING MESSAGE
+   * ------------------------------------------------
+   */
+
+  useEffect(() => {
+    if (!isAsking) {
+      setThinkingMessage("Searching your document...");
+      return;
+    }
+
+    setThinkingMessage("Searching your document...");
+
+    const timer = setTimeout(() => {
+      setThinkingMessage(
+        "This is taking a little longer..."
+      );
+    }, 8000);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isAsking]);
+
+  /*
+   * ------------------------------------------------
+   * FETCH DOCUMENTS
+   * ------------------------------------------------
+   */
 
   const fetchDocuments = async () => {
     try {
@@ -70,6 +106,12 @@ export default function Home() {
     fetchDocuments();
   }, []);
 
+  /*
+   * ------------------------------------------------
+   * FILE SELECTION
+   * ------------------------------------------------
+   */
+
   const handleFileChange = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -81,6 +123,7 @@ export default function Home() {
     setMessage("");
     setAskError("");
     setQuestion("");
+    setLastAskedQuestion("");
     setDocumentId("");
     setSelectedDocumentName("");
     setExtractedText("");
@@ -101,6 +144,12 @@ export default function Home() {
     setSelectedFile(file);
   };
 
+  /*
+   * ------------------------------------------------
+   * UPLOAD PDF
+   * ------------------------------------------------
+   */
+
   const handleUpload = async () => {
     if (!selectedFile) {
       setError("Please select a PDF file first.");
@@ -112,6 +161,7 @@ export default function Home() {
     setMessage("");
     setAskError("");
     setChatMessages([]);
+    setLastAskedQuestion("");
 
     try {
       const formData = new FormData();
@@ -148,6 +198,12 @@ export default function Home() {
     }
   };
 
+  /*
+   * ------------------------------------------------
+   * SELECT DOCUMENT FOR CHAT
+   * ------------------------------------------------
+   */
+
   const handleChat = async (
     selectedDocumentId: string,
     selectedFileName: string
@@ -157,6 +213,7 @@ export default function Home() {
     setMessage("");
     setAskError("");
     setQuestion("");
+    setLastAskedQuestion("");
     setExtractedText("");
     setChatMessages([]);
     setDocumentId(selectedDocumentId);
@@ -192,14 +249,33 @@ export default function Home() {
     }
   };
 
+  /*
+   * ------------------------------------------------
+   * CLEAR CHAT
+   * ------------------------------------------------
+   */
+
   const handleClearChat = () => {
     setChatMessages([]);
     setQuestion("");
     setAskError("");
+    setLastAskedQuestion("");
   };
 
-  const handleAsk = async () => {
-    if (!question.trim()) {
+  /*
+   * ------------------------------------------------
+   * ASK AI
+   * ------------------------------------------------
+   */
+
+  const handleAsk = async (
+    questionOverride?: string
+  ) => {
+    const userQuestion = (
+      questionOverride ?? question
+    ).trim();
+
+    if (!userQuestion) {
       setAskError("Please enter a question.");
       return;
     }
@@ -209,11 +285,14 @@ export default function Home() {
       return;
     }
 
-    const userQuestion = question.trim();
+    if (isAsking) {
+      return;
+    }
 
     setIsAsking(true);
     setAskError("");
     setQuestion("");
+    setLastAskedQuestion(userQuestion);
 
     setChatMessages((previousMessages) => [
       ...previousMessages,
@@ -254,6 +333,7 @@ export default function Home() {
       ]);
     } catch (error) {
       console.error("Ask AI error:", error);
+
       setAskError(
         "Unable to connect with AI. Please try again."
       );
@@ -261,6 +341,12 @@ export default function Home() {
       setIsAsking(false);
     }
   };
+
+  /*
+   * ------------------------------------------------
+   * PAGE
+   * ------------------------------------------------
+   */
 
   return (
     <main className="min-h-screen bg-[#070b18] text-white">
@@ -303,7 +389,10 @@ export default function Home() {
 
             <h2 className="text-4xl font-semibold tracking-tight sm:text-5xl">
               Chat with your
-              <span className="text-blue-400"> documents.</span>
+              <span className="text-blue-400">
+                {" "}
+                documents.
+              </span>
             </h2>
 
             <p className="mt-5 max-w-2xl text-base leading-7 text-slate-400 sm:text-lg">
@@ -502,7 +591,7 @@ export default function Home() {
                   )}
                 </div>
 
-                {chatMessages.length > 0 && (
+                {chatMessages.length > 0 && !isAsking && (
                   <button
                     type="button"
                     onClick={handleClearChat}
@@ -531,7 +620,8 @@ export default function Home() {
                   }}
                   placeholder="Ask something about your document..."
                   rows={4}
-                  className="w-full resize-none rounded-xl border border-white/10 bg-[#080d1a] p-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-blue-500/60"
+                  disabled={isAsking}
+                  className="w-full resize-none rounded-xl border border-white/10 bg-[#080d1a] p-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-blue-500/60 disabled:cursor-not-allowed disabled:opacity-60"
                 />
 
                 <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -541,19 +631,44 @@ export default function Home() {
 
                   <button
                     type="button"
-                    onClick={handleAsk}
+                    onClick={() => handleAsk()}
                     disabled={isAsking}
                     className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-medium transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {isAsking ? "Thinking..." : "Ask AI →"}
+                    {isAsking
+                      ? "Thinking..."
+                      : "Ask AI →"}
                   </button>
                 </div>
               </div>
 
+              {/* Error + Retry */}
               {askError && (
-                <p className="mt-4 text-sm text-red-400">
-                  {askError}
-                </p>
+                <div className="mt-5 rounded-xl border border-red-500/10 bg-red-500/5 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-red-400">
+                        ⚠ Something went wrong
+                      </p>
+
+                      <p className="mt-1 text-sm text-red-300/70">
+                        {askError}
+                      </p>
+                    </div>
+
+                    {lastAskedQuestion && !isAsking && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleAsk(lastAskedQuestion)
+                        }
+                        className="shrink-0 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm text-red-300 transition hover:bg-red-500/20"
+                      >
+                        ↻ Retry
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
 
               {chatMessages.length > 0 && (
@@ -604,7 +719,7 @@ export default function Home() {
                                     📄{" "}
                                     {source.pageNumber
                                       ? `Page ${source.pageNumber}`
-                                      : "PDF"}
+                                      : source.fileName}
                                   </span>
                                 )
                               )}
@@ -614,10 +729,24 @@ export default function Home() {
                     </div>
                   ))}
 
+                  {/* AI Loading */}
                   {isAsking && (
-                    <div className="rounded-2xl border border-white/5 bg-[#080d1a] p-5">
-                      <p className="text-sm text-slate-500">
-                        AskPDF is thinking...
+                    <div className="rounded-2xl border border-blue-500/10 bg-blue-500/[0.03] p-5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex gap-1">
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400 [animation-delay:150ms]" />
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400 [animation-delay:300ms]" />
+                        </div>
+
+                        <p className="text-sm text-slate-400">
+                          {thinkingMessage}
+                        </p>
+                      </div>
+
+                      <p className="mt-2 text-xs text-slate-600">
+                        AskPDF is processing your document. This may
+                        take a little longer for large or scanned PDFs.
                       </p>
                     </div>
                   )}
